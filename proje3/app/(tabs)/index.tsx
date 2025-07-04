@@ -36,17 +36,15 @@ export default function HomeScreen() {
     { label: 'Personal', value: 'personal', color: '#f8bbd0' },
   ];
 
-  const [folders, setFolders] = useState([
-    { id: 'default', name: 'Default' },
-  ]);
-  const [selectedFolder, setSelectedFolder] = useState('default');
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState('all');
   const [newFolderName, setNewFolderName] = useState('');
 
   const [notes, setNotes] = useState<Note[]>([
-    { id: '1', text: 'Welcome to your first note!', done: false, type: 'reminder', folderId: 'default', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null },
+    { id: '1', text: 'Welcome to your first note!', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null },
   ]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentNote, setCurrentNote] = useState<Note>({ id: '', text: '', done: false, type: 'reminder', folderId: 'default', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null });
+  const [currentNote, setCurrentNote] = useState<Note>({ id: '', text: '', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null });
   const [isEditing, setIsEditing] = useState(false);
 
   const [now, setNow] = useState(Date.now());
@@ -107,7 +105,13 @@ export default function HomeScreen() {
   const [specificLeftSeconds, setSpecificLeftSeconds] = useState('0');
 
   const openAddModal = () => {
-    setCurrentNote({ id: '', text: '', done: false, type: 'reminder', folderId: selectedFolder, hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null });
+    // Assign to first non-'all' folder if selected is 'all' or none
+    let folderId = selectedFolder;
+    if (folderId === 'all' || !folders.some(f => f.id === folderId)) {
+      const firstFolder = folders.find(f => f.id !== 'all');
+      folderId = firstFolder ? firstFolder.id : '';
+    }
+    setCurrentNote({ id: '', text: '', done: false, type: 'reminder', folderId, hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null });
     setCountdownDays('0');
     setCountdownHours('0');
     setCountdownMinutes('0');
@@ -266,8 +270,22 @@ export default function HomeScreen() {
     ));
   };
 
+  // Add 'All' folder if not present
+  useEffect(() => {
+    if (!folders.some(f => f.id === 'all')) {
+      setFolders([{ id: 'all', name: 'All' }, ...folders]);
+    }
+  }, []);
+
+  // Make 'All' the default selected folder
+  useEffect(() => {
+    if (folders.length && !folders.some(f => f.id === selectedFolder)) {
+      setSelectedFolder('all');
+    }
+  }, [folders]);
+
   const renderItem = ({ item }: { item: Note }) => {
-    if (item.folderId !== selectedFolder) return null;
+    if (selectedFolder !== 'all' && item.folderId !== selectedFolder) return null;
     const typeObj = noteTypes.find(t => t.value === item.type) || noteTypes[0];
     let countdownDisplay = '';
     let countdownDone = false;
@@ -383,7 +401,7 @@ export default function HomeScreen() {
             </View>
             <Text style={[{ marginBottom: 4, fontWeight: 'bold' }, isDark && styles.textDark]}>Folder:</Text>
             <View style={styles.typeSelector}>
-              {folders.map(folder => (
+              {folders.filter(folder => folder.id !== 'all').map(folder => (
                 <TouchableOpacity
                   key={folder.id}
                   style={[styles.typeButton, currentNote.folderId === folder.id && { borderColor: '#333', borderWidth: 2 }, isDark && styles.typeButtonDark]}
