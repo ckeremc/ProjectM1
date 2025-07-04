@@ -1,10 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { useThemeContext } from '../ThemeContext';
+import { useRouter } from 'expo-router';
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useThemeContext();
   const isDark = theme === 'dark';
+  const router = useRouter();
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -16,6 +18,12 @@ export default function SettingsScreen() {
       <Text style={[styles.info, isDark && styles.textDark]}>
         (This toggle now changes the theme globally.)
       </Text>
+      <TouchableOpacity
+        style={{ marginTop: 24, backgroundColor: '#ffd600', borderRadius: 8, padding: 12, alignItems: 'center' }}
+        onPress={() => router.push('/deleted-notes')}
+      >
+        <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 16 }}>Deleted Notes</Text>
+      </TouchableOpacity>
     </View>
   );
 }

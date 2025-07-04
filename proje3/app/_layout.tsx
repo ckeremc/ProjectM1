@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider as CustomThemeProvider, useThemeContext } from './ThemeContext';
+import { DeletedNotesProvider } from './DeletedNotesProvider';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -42,7 +43,9 @@ export default function RootLayout() {
 
   return (
     <CustomThemeProvider>
-      <LayoutWithTheme />
+      <DeletedNotesProvider>
+        <LayoutWithTheme />
+      </DeletedNotesProvider>
     </CustomThemeProvider>
   );
 }

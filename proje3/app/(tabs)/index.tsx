@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Button, Alert, Platform, Switch } from 'react-native';
+import React, { useState, useRef, useEffect, createContext, useContext } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Button, Alert, Platform, Switch, ScrollView } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Picker } from '@react-native-picker/picker';
 import { useThemeContext } from '../ThemeContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useDeletedNotes } from '../DeletedNotesProvider';
 
 // Define a type for notes
 type ReminderOption = 'timeup' | '1hour' | '1day' | 'specificleft';
@@ -26,6 +27,8 @@ type Note = {
   priority?: 'Low' | 'Medium' | 'High';
 };
 
+
+
 export default function HomeScreen() {
   const { theme } = useThemeContext();
   const isDark = theme === 'dark';
@@ -44,6 +47,7 @@ export default function HomeScreen() {
   const [notes, setNotes] = useState<Note[]>([
     { id: '1', text: 'Welcome to your first note!', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null, priority: undefined },
   ]);
+  const { addDeletedNote } = useDeletedNotes();
   const [modalVisible, setModalVisible] = useState(false);
   const [currentNote, setCurrentNote] = useState<Note>({ id: '', text: '', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null, priority: undefined });
   const [isEditing, setIsEditing] = useState(false);
@@ -108,7 +112,7 @@ export default function HomeScreen() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
 
-  const [sortBy, setSortBy] = useState<'priority' | 'timeLeft' | 'none'>('none');
+  const [sortBy, setSortBy] = useState<'priority' | 'importance' | 'timeLeft' | 'timeLeftReverse' | 'dateNewest' | 'dateOldest' | 'none'>('none');
 
   // Sorting helpers
   function getPriorityValue(priority?: 'Low' | 'Medium' | 'High') {
@@ -129,8 +133,16 @@ export default function HomeScreen() {
   let sortedNotes = filteredNotes;
   if (sortBy === 'priority') {
     sortedNotes = [...filteredNotes].sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority));
+  } else if (sortBy === 'importance') {
+    sortedNotes = [...filteredNotes].sort((a, b) => getPriorityValue(a.priority) - getPriorityValue(b.priority));
   } else if (sortBy === 'timeLeft') {
     sortedNotes = [...filteredNotes].sort((a, b) => getTimeLeft(a) - getTimeLeft(b));
+  } else if (sortBy === 'timeLeftReverse') {
+    sortedNotes = [...filteredNotes].sort((a, b) => getTimeLeft(b) - getTimeLeft(a));
+  } else if (sortBy === 'dateNewest') {
+    sortedNotes = [...filteredNotes].sort((a, b) => parseInt(b.id) - parseInt(a.id));
+  } else if (sortBy === 'dateOldest') {
+    sortedNotes = [...filteredNotes].sort((a, b) => parseInt(a.id) - parseInt(b.id));
   }
 
   const openAddModal = () => {
@@ -225,6 +237,10 @@ export default function HomeScreen() {
   };
 
   const handleDelete = async (id: string) => {
+    const noteToDelete = notes.find(n => n.id === id);
+    if (noteToDelete) {
+      addDeletedNote(noteToDelete);
+    }
     setNotes(notes.filter(n => n.id !== id));
     await cancelAllNotifications();
     // Reschedule notifications for remaining notes
@@ -437,8 +453,12 @@ export default function HomeScreen() {
           style={{ flex: 1, color: isDark ? '#fff' : '#222' }}
         >
           <Picker.Item label="None" value="none" />
-          <Picker.Item label="Priority" value="priority" />
-          <Picker.Item label="Time Left" value="timeLeft" />
+          <Picker.Item label="Priority (High to Low)" value="priority" />
+          <Picker.Item label="Importance (Low to High)" value="importance" />
+          <Picker.Item label="Time Left (Less to More)" value="timeLeft" />
+          <Picker.Item label="Time Left (More to Less)" value="timeLeftReverse" />
+          <Picker.Item label="Date Added (Newest)" value="dateNewest" />
+          <Picker.Item label="Date Added (Oldest)" value="dateOldest" />
         </Picker>
       </View>
       <FlatList
@@ -458,7 +478,7 @@ export default function HomeScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+          <ScrollView contentContainerStyle={[styles.modalContent, isDark && styles.modalContentDark]}>
             <Text style={[styles.modalTitle, isDark && styles.textDark]}>Which type would you like to create?</Text>
             <View style={styles.typeSelector}>
               {noteTypes.map(type => (
@@ -473,16 +493,18 @@ export default function HomeScreen() {
               ))}
             </View>
             <Text style={[{ marginBottom: 4, fontWeight: 'bold' }, isDark && styles.textDark]}>Folder:</Text>
-            <View style={styles.typeSelector}>
-              {folders.filter(folder => folder.id !== 'all').map(folder => (
-                <TouchableOpacity
-                  key={folder.id}
-                  style={[styles.typeButton, currentNote.folderId === folder.id && { borderColor: '#333', borderWidth: 2 }, isDark && styles.typeButtonDark]}
-                  onPress={() => setCurrentNote({ ...currentNote, folderId: folder.id })}
-                >
-                  <Text style={isDark && styles.textDark}>{folder.name}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, backgroundColor: isDark ? '#222' : '#fff', marginBottom: 12 }}>
+              <Picker
+                selectedValue={currentNote.folderId}
+                onValueChange={(itemValue) => setCurrentNote({ ...currentNote, folderId: itemValue })}
+                style={{ height: 40, color: isDark ? '#fff' : '#000' }}
+                dropdownIconColor={isDark ? '#fff' : '#333'}
+              >
+                <Picker.Item label="None" value="" />
+                {folders.filter(folder => folder.id !== 'all').map(folder => (
+                  <Picker.Item key={folder.id} label={folder.name} value={folder.id} />
+                ))}
+              </Picker>
             </View>
             <TextInput
               style={[styles.input, isDark && styles.inputDark]}
@@ -676,7 +698,7 @@ export default function HomeScreen() {
               <Button title="Cancel" onPress={() => setModalVisible(false)} />
               <Button title={isEditing ? 'Save' : 'Add'} onPress={handleSave} />
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
       {/* Folder Edit Modal */}
