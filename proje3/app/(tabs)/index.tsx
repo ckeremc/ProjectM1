@@ -23,6 +23,7 @@ type Note = {
   hasChecklist: boolean;
   checklist: ChecklistItem[];
   reminderDate: number | null; // timestamp in ms
+  priority?: 'Low' | 'Medium' | 'High';
 };
 
 export default function HomeScreen() {
@@ -41,10 +42,10 @@ export default function HomeScreen() {
   const [newFolderName, setNewFolderName] = useState('');
 
   const [notes, setNotes] = useState<Note[]>([
-    { id: '1', text: 'Welcome to your first note!', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null },
+    { id: '1', text: 'Welcome to your first note!', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null, priority: undefined },
   ]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentNote, setCurrentNote] = useState<Note>({ id: '', text: '', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null });
+  const [currentNote, setCurrentNote] = useState<Note>({ id: '', text: '', done: false, type: 'reminder', folderId: '', hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null, priority: undefined });
   const [isEditing, setIsEditing] = useState(false);
 
   const [now, setNow] = useState(Date.now());
@@ -104,6 +105,34 @@ export default function HomeScreen() {
   const [specificLeftMinutes, setSpecificLeftMinutes] = useState('0');
   const [specificLeftSeconds, setSpecificLeftSeconds] = useState('0');
 
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState('');
+
+  const [sortBy, setSortBy] = useState<'priority' | 'timeLeft' | 'none'>('none');
+
+  // Sorting helpers
+  function getPriorityValue(priority?: 'Low' | 'Medium' | 'High') {
+    if (priority === 'High') return 3;
+    if (priority === 'Medium') return 2;
+    if (priority === 'Low') return 1;
+    return 0;
+  }
+  function getTimeLeft(note: Note) {
+    if (note.hasCountdown && note.countdownEnd) {
+      return Math.max(0, note.countdownEnd - now);
+    }
+    return Infinity;
+  }
+
+  // Filtered and sorted notes
+  const filteredNotes = notes.filter(item => selectedFolder === 'all' || item.folderId === selectedFolder);
+  let sortedNotes = filteredNotes;
+  if (sortBy === 'priority') {
+    sortedNotes = [...filteredNotes].sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority));
+  } else if (sortBy === 'timeLeft') {
+    sortedNotes = [...filteredNotes].sort((a, b) => getTimeLeft(a) - getTimeLeft(b));
+  }
+
   const openAddModal = () => {
     // Assign to first non-'all' folder if selected is 'all' or none
     let folderId = selectedFolder;
@@ -111,7 +140,7 @@ export default function HomeScreen() {
       const firstFolder = folders.find(f => f.id !== 'all');
       folderId = firstFolder ? firstFolder.id : '';
     }
-    setCurrentNote({ id: '', text: '', done: false, type: 'reminder', folderId, hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null });
+    setCurrentNote({ id: '', text: '', done: false, type: 'reminder', folderId, hasCounter: false, counter: 0, hasCountdown: false, countdown: 0, countdownEnd: null, reminder: 'timeup', hasChecklist: false, checklist: [], reminderDate: null, priority: undefined });
     setCountdownDays('0');
     setCountdownHours('0');
     setCountdownMinutes('0');
@@ -284,6 +313,28 @@ export default function HomeScreen() {
     }
   }, [folders]);
 
+  const handleEditFolder = (folderId: string, folderName: string) => {
+    setEditingFolderId(folderId);
+    setEditingFolderName(folderName);
+  };
+
+  const handleSaveFolderEdit = () => {
+    if (!editingFolderId || !editingFolderName.trim()) return;
+    setFolders(folders.map(f => f.id === editingFolderId ? { ...f, name: editingFolderName.trim() } : f));
+    setEditingFolderId(null);
+    setEditingFolderName('');
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    // Remove folder
+    setFolders(folders.filter(f => f.id !== folderId));
+    // Reassign notes in this folder to the first available folder (not 'all'), or clear folderId
+    const firstFolder = folders.find(f => f.id !== 'all' && f.id !== folderId);
+    setNotes(notes.map(n => n.folderId === folderId ? { ...n, folderId: firstFolder ? firstFolder.id : '' } : n));
+    // If the deleted folder was selected, switch to 'all'
+    if (selectedFolder === folderId) setSelectedFolder('all');
+  };
+
   const renderItem = ({ item }: { item: Note }) => {
     if (selectedFolder !== 'all' && item.folderId !== selectedFolder) return null;
     const typeObj = noteTypes.find(t => t.value === item.type) || noteTypes[0];
@@ -296,6 +347,11 @@ export default function HomeScreen() {
     }
     return (
       <View style={[styles.note, { backgroundColor: typeObj.color }, item.done && styles.noteDone, countdownDone && styles.countdownDone]}>
+        {item.priority && (
+          <Text style={[styles.priorityLabel, item.priority === 'High' ? styles.priorityHigh : item.priority === 'Medium' ? styles.priorityMedium : styles.priorityLow]}>
+            {item.priority} Priority
+          </Text>
+        )}
         <TouchableOpacity style={styles.checkButton} onPress={() => toggleDone(item.id)}>
           <Text style={styles.checkButtonText}>{item.done ? '✔️' : '⬜️'}</Text>
         </TouchableOpacity>
@@ -348,12 +404,16 @@ export default function HomeScreen() {
           horizontal
           keyExtractor={f => f.id}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.folderButton, selectedFolder === item.id && styles.folderButtonSelected, isDark && styles.folderButtonDark]}
-              onPress={() => setSelectedFolder(item.id)}
-            >
-              <Text style={[styles.folderButtonText, isDark && styles.textDark]}>{item.name}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styles.folderButton, selectedFolder === item.id && styles.folderButtonSelected, isDark && styles.folderButtonDark]}
+                onPress={() => setSelectedFolder(item.id)}
+                onLongPress={() => { if (item.id !== 'all') handleEditFolder(item.id, item.name); }}
+                delayLongPress={2500}
+              >
+                <Text style={[styles.folderButtonText, isDark && styles.textDark]}>{item.name}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         />
         <TextInput
@@ -368,8 +428,21 @@ export default function HomeScreen() {
           <Text style={{ fontSize: 20, color: isDark ? '#222' : '#000' }}>＋</Text>
         </TouchableOpacity>
       </View>
+      {/* Filter/Sort Dropdown */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8 }}>
+        <Text style={[{ fontWeight: 'bold', marginRight: 8 }, isDark && styles.textDark]}>Sort by:</Text>
+        <Picker
+          selectedValue={sortBy}
+          onValueChange={setSortBy}
+          style={{ flex: 1, color: isDark ? '#fff' : '#222' }}
+        >
+          <Picker.Item label="None" value="none" />
+          <Picker.Item label="Priority" value="priority" />
+          <Picker.Item label="Time Left" value="timeLeft" />
+        </Picker>
+      </View>
       <FlatList
-        data={notes}
+        data={sortedNotes}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
@@ -419,6 +492,20 @@ export default function HomeScreen() {
               onChangeText={text => setCurrentNote({ ...currentNote, text })}
               multiline
             />
+            {/* Priority Picker */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[{ fontWeight: 'bold', marginBottom: 4 }, isDark && styles.textDark]}>Priority (optional):</Text>
+              <Picker
+                selectedValue={currentNote.priority}
+                onValueChange={priority => setCurrentNote({ ...currentNote, priority })}
+                style={{ color: isDark ? '#fff' : '#222' }}
+              >
+                <Picker.Item label="None" value={undefined} />
+                <Picker.Item label="Low" value="Low" />
+                <Picker.Item label="Medium" value="Medium" />
+                <Picker.Item label="High" value="High" />
+              </Picker>
+            </View>
             {/* Counter toggle */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <Text style={[{ marginRight: 8 }, isDark && styles.textDark]}>Add a counter to this note?</Text>
@@ -589,6 +676,34 @@ export default function HomeScreen() {
               <Button title="Cancel" onPress={() => setModalVisible(false)} />
               <Button title={isEditing ? 'Save' : 'Add'} onPress={handleSave} />
             </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Folder Edit Modal */}
+      <Modal
+        visible={!!editingFolderId}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingFolderId(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.editModal, isDark && styles.editModalDark]}>
+            <Text style={[styles.editModalTitle, isDark && styles.textDark]}>Edit Folder Name</Text>
+            <TextInput
+              style={[styles.input, isDark && styles.inputDark, { marginBottom: 16 }]}
+              value={editingFolderName}
+              onChangeText={setEditingFolderName}
+              autoFocus
+            />
+            <TouchableOpacity style={[styles.addButton, isDark && styles.addButtonDark, { marginTop: 8 }]} onPress={handleSaveFolderEdit}>
+              <Text style={styles.addButtonText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setEditingFolderId(null)}>
+              <Text style={[styles.linkButtonText, { textAlign: 'center' }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.deleteFolderButton, { marginTop: 24 }]} onPress={() => { if (editingFolderId) { handleDeleteFolder(editingFolderId); setEditingFolderId(null); } }}>
+              <Text style={styles.deleteFolderButtonText}>Delete Folder</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -830,5 +945,63 @@ const styles = StyleSheet.create({
   },
   penIcon: {
     fontSize: 22,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModal: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '80%',
+  },
+  editModalDark: {
+    backgroundColor: '#23242a',
+  },
+  editModalTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  linkButtonText: {
+    color: '#ff5252',
+    fontSize: 16,
+  },
+  deleteFolderButton: {
+    backgroundColor: '#ff5252',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  deleteFolderButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  priorityLabel: {
+    alignSelf: 'flex-start',
+    fontWeight: 'bold',
+    fontSize: 13,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  priorityHigh: {
+    backgroundColor: '#ff5252',
+    color: '#fff',
+  },
+  priorityMedium: {
+    backgroundColor: '#ffd600',
+    color: '#222',
+  },
+  priorityLow: {
+    backgroundColor: '#b9f6ca',
+    color: '#222',
   },
 });
