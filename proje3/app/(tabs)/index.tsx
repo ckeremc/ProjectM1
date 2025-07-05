@@ -372,7 +372,14 @@ export default function HomeScreen() {
           <Text style={styles.checkButtonText}>{item.done ? '✔️' : '⬜️'}</Text>
         </TouchableOpacity>
         <View style={styles.noteTextContainer}>
-          <Text style={[styles.noteTypeLabel, { color: typeObj.color, backgroundColor: '#3332', borderRadius: 4, paddingHorizontal: 6, marginBottom: 4 }]}>{typeObj.label}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <Text style={[styles.noteTypeLabel, { color: typeObj.color, backgroundColor: '#3332', borderRadius: 4, paddingHorizontal: 6 }]}>{typeObj.label}</Text>
+            {item.folderId && folders.find(f => f.id === item.folderId) && (
+              <Text style={{ fontSize: 11, color: '#bbb', marginLeft: 6 }}>
+                📁 {folders.find(f => f.id === item.folderId)?.name}
+              </Text>
+            )}
+          </View>
           <Text style={[styles.noteText, item.done && styles.noteTextDone]}>{item.text}</Text>
           {item.hasChecklist && item.checklist.length > 0 && (
             <View style={{ marginTop: 6, marginBottom: 2 }}>
