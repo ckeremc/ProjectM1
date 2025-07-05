@@ -150,6 +150,14 @@ export default function WebSlidePage() {
     setEditingNote(null);
   };
 
+  // Delete note handler
+  const handleDeleteNote = () => {
+    if (editingNote) {
+      setNotes(notes.filter(n => n.id !== editingNote.id));
+      setEditingNote(null);
+    }
+  };
+
   // Only draw lines for linked notes
   const lines = links.map((l, idx) => {
     const from = notes.find(n => n.id === l.from);
@@ -235,6 +243,9 @@ export default function WebSlidePage() {
             </View>
             <TouchableOpacity style={[styles.addButton, isDark && styles.addButtonDark, { marginTop: 16 }]} onPress={handleSaveEdit}>
               <Text style={styles.addButtonText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop: 8 }} onPress={handleDeleteNote}>
+              <Text style={[styles.linkButtonText, { textAlign: 'center', color: '#ff5252' }]}>Delete Note</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setEditingNote(null)}>
               <Text style={[styles.linkButtonText, { textAlign: 'center' }]}>Cancel</Text>
