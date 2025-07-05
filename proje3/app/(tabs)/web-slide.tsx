@@ -10,6 +10,7 @@ interface Note {
   text: string;
   x: number;
   y: number;
+  countdownEnd?: number; // timestamp in ms, optional
 }
 
 export default function WebSlidePage() {
@@ -27,6 +28,12 @@ export default function WebSlidePage() {
   const [longPressActive, setLongPressActive] = useState(false);
   const LONG_PRESS_DURATION = 400; // ms
   const MOVE_THRESHOLD = 10; // px
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAddNote = () => {
     if (!input.trim()) return;
@@ -170,6 +177,22 @@ export default function WebSlidePage() {
     };
   }).filter(Boolean);
 
+  // Helper to format seconds as 'Xd Yh Zm Ws left'
+  function formatCountdown(seconds: number) {
+    const d = Math.floor(seconds / 86400);
+    seconds %= 86400;
+    const h = Math.floor(seconds / 3600);
+    seconds %= 3600;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    let str = '';
+    if (d > 0) str += `${d}d `;
+    if (h > 0 || d > 0) str += `${h}h `;
+    if (m > 0 || h > 0 || d > 0) str += `${m}m `;
+    str += `${s}s left`;
+    return str.trim();
+  }
+
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       {/* Spider web SVG lines */}
@@ -205,6 +228,8 @@ export default function WebSlidePage() {
       </View>
       {notes.map((note) => {
         const panResponder = createPanResponder(note);
+        const showCountdown = note.countdownEnd && note.countdownEnd > now;
+        const secondsLeft = showCountdown ? Math.floor((note.countdownEnd! - now) / 1000) : 0;
         return (
           <View
             key={note.id}
@@ -213,6 +238,11 @@ export default function WebSlidePage() {
           >
             <View style={[styles.note, isDark && styles.noteDark]}>
               <Text style={[styles.noteText, isDark && styles.textDark]}>{note.text}</Text>
+              {showCountdown && (
+                <Text style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                  {formatCountdown(secondsLeft)}
+                </Text>
+              )}
             </View>
           </View>
         );

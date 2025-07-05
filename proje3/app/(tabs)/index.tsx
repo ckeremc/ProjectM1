@@ -351,6 +351,22 @@ export default function HomeScreen() {
     if (selectedFolder === folderId) setSelectedFolder('all');
   };
 
+  // Helper to format seconds as 'Xd Yh Zm Ws left'
+  function formatCountdown(seconds: number) {
+    const d = Math.floor(seconds / 86400);
+    seconds %= 86400;
+    const h = Math.floor(seconds / 3600);
+    seconds %= 3600;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    let str = '';
+    if (d > 0) str += `${d}d `;
+    if (h > 0 || d > 0) str += `${h}h `;
+    if (m > 0 || h > 0 || d > 0) str += `${m}m `;
+    str += `${s}s left`;
+    return str.trim();
+  }
+
   const renderItem = ({ item }: { item: Note }) => {
     if (selectedFolder !== 'all' && item.folderId !== selectedFolder) return null;
     const typeObj = noteTypes.find(t => t.value === item.type) || noteTypes[0];
@@ -358,7 +374,7 @@ export default function HomeScreen() {
     let countdownDone = false;
     if (item.hasCountdown && item.countdownEnd) {
       const secondsLeft = Math.max(0, Math.floor((item.countdownEnd - now) / 1000));
-      countdownDisplay = `${Math.floor(secondsLeft / 60)}:${('0' + (secondsLeft % 60)).slice(-2)}`;
+      countdownDisplay = formatCountdown(secondsLeft);
       countdownDone = secondsLeft === 0;
     }
     return (
